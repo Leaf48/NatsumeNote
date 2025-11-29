@@ -1,7 +1,6 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import "dotenv/config";
-import { prisma } from "./repository/db.js";
 import { cors } from "hono/cors";
 import authRoutes from "./routes/auth.js";
 import noteRoutes from "./routes/note.js";
