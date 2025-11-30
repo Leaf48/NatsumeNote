@@ -3,15 +3,38 @@ import { prisma } from "../repository/db.js";
 import nacl from "tweetnacl";
 import naclUtil from "tweetnacl-util";
 import { Prisma } from "@prisma/client";
+import { v4 as uuidv4 } from "uuid";
+import { userChallenge } from "../repository/redis.js";
+
+export const challenge = async (c: Context) => {
+  const challengeId = uuidv4();
+
+  const nonceBytes = nacl.randomBytes(32);
+  const nonceString = naclUtil.encodeBase64(nonceBytes);
+
+  await userChallenge.saveChallenge(challengeId, nonceString);
+
+  return c.json({ challengeId: challengeId, challenge: nonceString }, 200);
+};
 
 export const register = async (c: Context) => {
   try {
-    const { publicKey, signature } = await c.req.json();
+    const { publicKey, signature, challengeId } = await c.req.json();
 
-    if (!publicKey || !signature) {
+    if (!publicKey || !signature || !challengeId) {
       return c.json(
         {
-          error: "PublicKey and signature are required",
+          error: "PublicKey, signature and challengeId are required",
+        },
+        400
+      );
+    }
+
+    const challenge = await userChallenge.useChallenge(challengeId);
+    if (!challenge) {
+      return c.json(
+        {
+          error: "Challenge not found",
         },
         400
       );
@@ -24,7 +47,7 @@ export const register = async (c: Context) => {
         return c.json({ error: "Invalid public key format" }, 400);
       }
 
-      const messageBytes = naclUtil.decodeUTF8("register-action");
+      const messageBytes = naclUtil.decodeBase64(challenge);
       const signatureBytes = naclUtil.decodeBase64(signature);
       const isValid = nacl.sign.detached.verify(
         messageBytes,

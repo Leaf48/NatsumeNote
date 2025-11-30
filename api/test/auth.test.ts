@@ -26,14 +26,22 @@ const deriveAuthKey = async (username: string, password: string) => {
 };
 
 describe("Auth API", () => {
-  it("register using Argon2id", async () => {
+  it("challenge", async () => {
+    const res = await app.request("/auth/challenge");
+    console.log(await res.json());
+  });
+
+  it("clear challenge and register new user", async () => {
+    const challengeRes = await app.request("/auth/challenge");
+    const { challengeId, challenge } = await challengeRes.json();
+
     const username = uuidv4();
-    const password = "anonymous_password";
+    const password = uuidv4();
 
     const { publicKey, secretKey } = await deriveAuthKey(username, password);
     console.log("Generated public key:", publicKey);
 
-    const messageBytes = naclUtil.decodeUTF8("register-action");
+    const messageBytes = naclUtil.decodeBase64(challenge);
     const signatureBytes = nacl.sign.detached(messageBytes, secretKey);
     const signature = naclUtil.encodeBase64(signatureBytes);
     console.log("Generated signature:", signature);
@@ -46,11 +54,10 @@ describe("Auth API", () => {
       body: JSON.stringify({
         publicKey,
         signature,
+        challengeId,
       }),
     });
+    console.log(res.status, await res.json());
     expect(res.status).toBe(201);
-
-    const body = await res.json();
-    console.log(body);
   });
 });
